@@ -1,0 +1,366 @@
+// client and account table contains the date
+// Create database.
+CREATE OR REPLACE DATABASE bank_data_analysis;
+
+// Use the database
+USE bank_data_analysis;
+
+SELECT *
+FROM `order`
+LIMIT 10;
+
+// Create tables
+CREATE OR REPLACE TABLE district (
+district_code INT PRIMARY KEY,
+district_name VARCHAR(30),
+region VARCHAR(30),
+no_of_inhabitants INT,
+no_of_muncipalities_inhabitants_between_0_and_499 INT,
+no_of_muncipalities_inhabitants_between_500_and_1999 INT,
+no_of_muncipalities_inhabitants_between_2000_and_9999 INT,
+no_of_muncipalities_inhabitants_greater_than_10000 INT,
+no_of_cities INT,
+ratio_of_urban_inhabitants FLOAT,
+average_salary INT,
+no_of_entreprenuers_per_100_inhabitants INT,
+no_of_commited_crimes_in_2017 INT,
+no_of_commited_crimes_in_2018 INT);
+
+SELECT * FROM `order`;
+
+CREATE OR REPLACE TABLE `account`(
+account_id INT PRIMARY KEY,
+district_id INT,
+frequency VARCHAR(30),
+`date` DATE,
+account_type VARCHAR(20),
+card_assigned VARCHAR(10),
+FOREIGN KEY(district_id) REFERENCES district(district_code));
+
+CREATE OR REPLACE TABLE `order` (
+order_id INT PRIMARY KEY,
+account_id INT,
+bank_to VARCHAR(50),
+account_to INT,
+amount FLOAT,
+FOREIGN KEY(account_id) REFERENCES `account`(account_id));
+
+CREATE OR REPLACE TABLE loan (
+loan_id INT,
+account_id INT,
+`date` DATE,
+amount INT,
+duration_in_months INT,
+payments INT,
+`status` VARCHAR(20),
+FOREIGN KEY(account_id) REFERENCES `account`(account_id));
+
+CREATE OR REPLACE TABLE `transaction` (
+trans_id INT,
+account_id INT,
+`date` DATE,
+`type` VARCHAR(30),
+operation VARCHAR(40),
+amount INT,
+balance FLOAT,
+purpose VARCHAR(40),
+bank VARCHAR(45),
+`account` INT,
+FOREIGN KEY(account_id) REFERENCES district(district_code));
+
+CREATE OR REPLACE TABLE client (
+client_id INT PRIMARY KEY,
+sex VARCHAR(6),
+birth_date DATE,
+district_id INT,
+FOREIGN KEY(district_id) REFERENCES district(district_code));
+
+CREATE OR REPLACE TABLE disposition(
+disp_id	INT PRIMARY KEY,
+client_id INT,
+account_id	INT,
+`type` CHAR(15),
+FOREIGN KEY (account_id) references `account`(account_id),
+FOREIGN KEY (client_id) references client(client_id));
+
+CREATE OR REPLACE TABLE card (
+card_id INT,
+disp_id INT,
+`type` VARCHAR(10),
+issued_date DATE,
+FOREIGN KEY(disp_id) REFERENCES disposition(disp_id));
+
+SELECT *
+FROM BANK_DATA_ANALYSIS.PUBLIC.DISTRICT;
+
+// Create storage integration
+CREATE OR REPLACE STORAGE INTEGRATION s3_int_bank
+TYPE=EXTERNAL_STAGE
+STORAGE_PROVIDER=S3
+ENABLED=TRUE
+STORAGE_AWS_ROLE_ARN='arn:aws:iam::494117075732:role/bankrole'
+STORAGE_ALLOWED_LOCATIONS=('s3://czechoslovakiabankingdata/');
+
+DESC INTEGRATION s3_int_bank;
+
+// Create file format
+CREATE OR REPLACE FILE FORMAT csv_format_bank
+TYPE='csv'
+COMPRESSION='none'
+FIELD_DELIMITER=','
+FIELD_OPTIONALLY_ENCLOSED_BY='none'
+SKIP_HEADER=1;
+
+SHOW FILE FORMATS;
+
+// Create stage
+CREATE OR REPLACE STAGE district_stage
+URL='s3://czechoslovakiabankingdata'
+FILE_FORMAT=csv_format_bank
+STORAGE_INTEGRATION=s3_int_bank;
+
+CREATE OR REPLACE STAGE account_stage
+url='s3://czechoslovakiabankingdata'
+FILE_FORMAT=csv_format_banK
+STORAGE_INTEGRATION=s3_int_bank;
+
+CREATE OR REPLACE STAGE order_stage
+url='s3://czechoslovakiabankingdata'
+file_format=csv_format_bank
+storage_integration=s3_int_bank;
+
+CREATE OR REPLACE STAGE loan_stage
+url='s3://czechoslovakiabankingdata'
+file_format=csv_format_bank
+storage_integration=s3_int_bank;
+
+CREATE OR REPLACE STAGE transaction_stage
+url='s3://czechoslovakiabankingdata'
+file_format=csv_format_bank
+storage_integration=s3_int_bank;
+
+CREATE OR REPLACE STAGE client_stage
+url='s3://czechoslovakiabankingdata'
+file_format=csv_format_bank
+storage_integration=s3_int_bank;
+
+CREATE OR REPLACE STAGE disposition_stage
+url='s3://czechoslovakiabankingdata'
+file_format=csv_format_bank
+storage_integration=s3_int_bank;
+
+CREATE OR REPLACE STAGE card_stage
+url='s3://czechoslovakiabankingdata'
+file_format=csv_format_bank
+storage_integration=s3_int_bank;
+
+SHOW STAGES;
+
+LIST @district_stage;
+
+// Create a pipe
+CREATE OR REPLACE PIPE district_snowpipe
+AUTO_INGEST=TRUE AS 
+COPY INTO BANK_DATA_ANALYSIS.PUBLIC.DISTRICT
+FROM '@district_stage/district/'
+FILE_FORMAT=csv_format_bank;
+
+CREATE OR REPLACE PIPE account_snowpipe
+AUTO_INGEST=TRUE AS 
+COPY INTO BANK_DATA_ANALYSIS.PUBLIC."`ACCOUNT`"
+FROM '@account_stage/account/'
+FILE_FORMAT=csv_format_bank;
+
+CREATE OR REPLACE PIPE order_snowpipe
+AUTO_INGEST=TRUE AS
+COPY INTO BANK_DATA_ANALYSIS.PUBLIC."`ORDER`"
+FROM '@order_stage/order/'
+FILE_FORMAT=csv_format_bank;
+
+CREATE OR REPLACE PIPE loan_snowpipe
+AUTO_INGEST=TRUE AS
+COPY INTO BANK_DATA_ANALYSIS.PUBLIC.LOAN
+FROM '@loan_stage/loan/'
+FILE_FORMAT=csv_format_bank;
+
+CREATE OR REPLACE PIPE transaction_snowpipe
+AUTO_INGEST=TRUE AS 
+COPY INTO BANK_DATA_ANALYSIS.PUBLIC."`TRANSACTION`"
+FROM '@transaction_stage/transaction/'
+FILE_FORMAT=csv_format_bank;
+
+CREATE OR REPLACE PIPE client_snowpipe
+AUTO_INGEST=TRUE AS 
+COPY INTO BANK_DATA_ANALYSIS.PUBLIC.CLIENT
+FROM '@client_stage/client/'
+FILE_FORMAT=csv_format_bank;
+
+CREATE OR REPLACE PIPE disposition_snowpipe
+AUTO_INGEST=TRUE AS 
+COPY INTO BANK_DATA_ANALYSIS.PUBLIC.DISPOSITION
+FROM '@client_stage/disposition/'
+FILE_FORMAT=csv_format_bank;
+
+CREATE OR REPLACE PIPE card_snowpipe
+AUTO_INGEST=TRUE AS 
+COPY INTO BANK_DATA_ANALYSIS.PUBLIC.CARD
+FROM '@card_stage/card/'
+FILE_FORMAT=csv_format_bank;
+
+SHOW PIPES;
+
+// Refresh the pipe
+ALTER PIPE district_snowpipe REFRESH;
+ALTER PIPE account_snowpipe REFRESH;
+ALTER PIPE order_snowpipe REFRESH;
+ALTER PIPE loan_snowpipe REFRESH;
+ALTER PIPE transaction_snowpipe REFRESH;
+ALTER PIPE client_snowpipe REFRESH;
+ALTER PIPE disposition_snowpipe REFRESH;
+ALTER PIPE card_snowpipe REFRESH;
+
+// district, account, client, and card table was cleaned in Excel 
+SELECT COUNT(*) AS total_records_in_district
+FROM district; // 77 
+
+SELECT COUNT(*) AS total_records_in_account
+FROM `account`; // 4,500
+
+SELECT COUNT(*) AS total_records_in_order
+FROM `order`; // 6,471
+
+SELECT COUNT(*) AS total_records_in_loan
+FROM loan; // 682
+
+SELECT COUNT(*) AS total_records_in_transaction
+FROM BANK_DATA_ANALYSIS.PUBLIC."`TRANSACTION`"; // 10,48,575
+
+SELECT COUNT(*) AS total_records_in_client
+FROM client; // 5,369
+
+SELECT COUNT(*) AS total_records_in_disposition
+FROM disposition; // 5,369
+
+SELECT COUNT(*) AS total_records_in_card
+FROM card; // 892
+
+SELECT *
+FROM client;
+
+// Add new column age and add age to it
+ALTER TABLE client 
+ADD COLUMN age INT;
+
+UPDATE client 
+SET age=DATEDIFF(YEAR,birth_date,'2022-12-31');
+
+SELECT YEAR(`date`) AS `year`, COUNT(*) AS total_transaction
+FROM `transaction`
+GROUP BY 1
+ORDER BY 2 DESC; 
+
+
+// convert 2021 to 2022,2020 to 2021,2019 to 2020,2018 to 2019,2017 to 2018, and 2016 to 2017 using the below updated SQL query
+UPDATE `transaction`
+SET `date`=DATEADD(YEAR,1,`date`)
+WHERE YEAR(`date`)=2016;
+
+SELECT MIN(`date`) AS minimum_date, MAX(`date`) AS maximum_date
+FROM `transaction`;
+
+SELECT *
+FROM `transaction`
+WHERE bank IS NULL AND YEAR(`date`)=2016;
+
+// Data Cleaning in SQL
+UPDATE `transaction`
+SET bank='Sky Bank' WHERE bank IS NULL AND YEAR(`date`)=2022;
+
+UPDATE `transaction`
+SET bank='DBS Bank' WHERE bank IS NULL AND YEAR(`date`)=2021;
+
+UPDATE `transaction`
+SET bank='Northern Bank' WHERE bank IS NULL AND YEAR(`date`)=2019;
+
+UPDATE `transaction`
+SET bank='Southern Bank' WHERE bank IS NULL AND YEAR(`date`)=2018;
+
+UPDATE `transaction`
+SET bank='ADB Bank' WHERE bank IS NULL AND YEAR(`date`)=2017;
+
+SELECT DISTINCT(YEAR(issued_date)) AS distint_issued_date
+FROM card;
+
+SELECT *
+FROM card WHERE issued_date='2021-02-28';
+
+SELECT DISTINCT(YEAR(`date`)) AS `year`, COUNT(*) AS total_accounts 
+FROM `account`
+GROUP BY 1
+ORDER BY 1 DESC;
+
+SELECT DISTINCT(sex)
+FROM client;
+
+// Find no of male and female
+SELECT 
+SUM(CASE WHEN sex='Male' THEN 1 END) AS no_of_male_client,
+SUM(CASE WHEN sex='Female' THEN 1 END) AS no_of_female_client
+FROM client;
+
+// Finding male and female %
+SELECT 
+SUM(CASE WHEN sex='Male' THEN 1 END)/COUNT(*)*100 AS male_percent,
+SUM(CASE WHEN sex='Female' THEN 1 END)/COUNT(*)*100 AS female_percent
+FROM client;
+
+// Card, client, disposition, district, loan, `account`, `order`, and `transaction`
+// Data Analysis
+// 1) What is the demographic profile of the bank's clients and how does it vary across districts? 
+CREATE OR REPLACE TABLE czech_demographic
+AS 
+SELECT c.district_id, d.district_name, d.average_salary,
+ROUND(AVG(c.age),0) AS average_age,
+SUM(CASE WHEN sex='Male' THEN 1 END) AS male_client,
+SUM(CASE WHEN sex='Female' THEN 1 END) AS female_client,
+ROUND((male_client/female_client)*100,2) AS male_female_ratio_percent,
+COUNT(*) AS total_client
+FROM client as c
+LEFT OUTER JOIN
+district AS d
+ON c.district_id=d.district_code
+GROUP BY 1,2,3
+ORDER BY 1;
+
+SELECT *
+FROM czech_demographic;
+
+// Create a table
+WITH latest_transaction AS (
+SELECT account_id, YEAR(`date`) AS txn_year, MONTH(`date`) AS txn_month, balance,
+ROW_NUMBER() OVER(PARTITION BY 1,2,3 ORDER BY `date` DESC) AS rn
+FROM `transaction`
+),
+latest_txn_balance AS (
+SELECT account_id, txn_year, txn_month, balance
+FROM latest_transaction
+WHERE rn=1
+)
+SELECT t.*, ltb.balance
+FROM `transaction` AS t
+INNER JOIN latest_txn_balance AS ltb
+ON t.account_id=ltb.account_id
+AND YEAR(t.`date`)=ltb.txn_year
+AND MONTH(t.`date`)=ltb.txn_month
+WHERE t.`type`='Credit'
+ORDER BY t.account_id, ltb.txn_year, ltb.txn_month;
+// 2) How the banks have performed over the years. Give their detailed analysis year and month-wise.
+SELECT COUNT(DISTINCT(client_id)) AS total_male_client
+FROM client
+WHERE sex='Male';
+SELECT COUNT(DISTINCT(client_id)) AS total_female_client
+FROM client
+WHERE sex='Female';
+
+SELECT COUNT(DISTINCT(client_id)) AS total_client
+FROM client;
