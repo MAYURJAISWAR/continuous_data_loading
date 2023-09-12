@@ -1,0 +1,61 @@
+CREATE OR REPLACE DATABASE azure_database;
+USE azure_database;
+
+CREATE OR REPLACE TABLE transaction_raw (
+household_key INT,
+basket_id INT,
+`day` INT,
+product_id INT,
+quantity INT,
+sales_value FLOAT,
+store_id INT,
+retail_disc FLOAT,
+trans_time INT,
+week_no INT,
+coupon_disc INT,
+coupon_match_disc INT);
+
+CREATE OR REPLACE FILE FORMAT retail_transaction_csv
+type='csv'
+compression='none'
+field_delimiter=','
+field_optionally_enclosed_by='none'
+skip_header=1;
+
+CREATE OR REPLACE NOTIFICATION INTEGRATION rt_integration
+enabled=TRUE
+type=queue
+notification_provider=azure_storage_queue
+azure_storage_queue_primary_uri='https://liveretailfilestorage.queue.core.windows.net/retail-transaction-queue'
+azure_tenant_id='42ce94cf-c8c5-4aa3-a75f-bced38e34883';
+
+SHOW INTEGRATIONS;
+
+DESC NOTIFICATION INTEGRATION RT_INTEGRATION;
+
+SELECT COUNT(*) AS total_records
+FROM transaction_raw
+
+-- url=stagging URL and credentials should be SAS token
+CREATE OR REPLACE STAGE retail_transaction_stage
+url = 'azure://liveretailfilestorage.blob.core.windows.net/retail-transaction-container/'
+credentials = (azure_sas_token='?sv=2022-11-02&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2023-09-10T16:51:09Z&st=2023-09-10T08:51:09Z&spr=https&sig=0NkxjhQwFh5yZRyrv%2BxS9iMlPF%2F1m2ApQKW4tuA51eE%3D');
+
+SHOW STAGES;
+
+LS @retail_transaction_stage;
+
+CREATE OR REPLACE PIPE "TRANSACTION_PIPE"
+  auto_ingest = true
+  integration = 'RT_INTEGRATION'
+  as
+  copy into TRANSACTION_RAW
+  from @retail_transaction_stage
+  file_format = retail_transaction_csv;
+
+  ALTER PIPE transaction_pipe REFRESH;
+
+  SHOW PIPES;
+
+  SELECT COUNT(*) AS total_records
+  FROM transaction_raw;
