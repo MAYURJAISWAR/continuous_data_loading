@@ -1,0 +1,44 @@
+CREATE OR REPLACE DATABASE aws_database;
+USE aws_database;
+
+CREATE OR REPLACE TABLE aws_transaction_raw LIKE AZURE_DATABASE.PUBLIC.TRANSACTION_RAW;
+
+CREATE OR REPLACE FILE FORMAT aws_retail_transaction_csv_format
+type='csv'
+compression='none'
+field_delimiter=','
+field_optionally_enclosed_by='none'
+skip_header=1;
+
+CREATE OR REPLACE STORAGE INTEGRATION AWS_RETAIL_TRANSACTION_INT
+TYPE=EXTERNAL_STAGE
+STORAGE_PROVIDER=S3
+ENABLED=TRUE
+STORAGE_AWS_ROLE_ARN='arn:aws:iam::494117075732:role/retail_transaction_access_role'
+STORAGE_ALLOWED_LOCATIONS=('s3://liveclassretailraw/');
+
+SHOW INTEGRATIONS;
+
+DESC INTEGRATION AWS_RETAIL_TRANSACTION_INT;
+
+CREATE OR REPLACE STAGE retail_transaction_stage
+url='s3://liveclassretailraw'
+file_format=aws_retail_transaction_csv_format
+storage_integration=aws_retail_transaction_int;
+
+LIST @retail_transaction_stage;
+
+CREATE OR REPLACE PIPE retail_transaction_pipe
+auto_ingest=TRUE
+AS 
+COPY INTO aws_transaction_raw
+FROM '@retail_transaction_stage/transaction/'
+file_format=aws_retail_transaction_csv_format;
+
+SHOW PIPES;
+
+ALTER PIPE retail_transaction_pipe REFRESH;
+
+SELECT *
+FROM TABLE(information_schema.history(table_name=>'aws_transaction_raw'.
+start_time=> DATEADD (hours,-1,CURRENT_TIMESTAMP())));
